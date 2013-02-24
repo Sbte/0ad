@@ -23,8 +23,9 @@
 #include "precompiled.h"
 #include "lib/frequency_filter.h"
 
-static const double errorTolerance = 0.05f;
+static const double errorTolerance = 0.25;
 static const double sensitivity = 0.10;
+static const double sampleSeconds = 2.0;
 
 /**
  * variable-width window for frequency determination
@@ -192,7 +193,8 @@ class FrequencyFilter : public IFrequencyFilter
 public:
 	FrequencyFilter(double resolution, double expectedFrequency)
 		: m_frequencyEstimator(resolution), m_controller(expectedFrequency), m_iirFilter(sensitivity, expectedFrequency)
-		, m_stableFrequency((int)expectedFrequency), m_smoothedFrequency(expectedFrequency)
+		, m_stableFrequency((int)expectedFrequency), m_smoothedFrequency(expectedFrequency), m_averagedFrequency(expectedFrequency)
+		, m_sampleAmount((int)(sampleSeconds * expectedFrequency))
 	{
 	}
 
@@ -205,12 +207,22 @@ public:
 		const int bias = m_controller.ComputeBias(m_smoothedFrequency, frequency);
 		m_smoothedFrequency = m_iirFilter(frequency, bias);
 
+		// Keep an moving average of the frequency over the last two seconds
+		// If there is a spike of more than 25% (for example after the menu)
+		// then reset the moving average and reset the amount of samples needed
+		const double difference = fabs(m_smoothedFrequency - m_averagedFrequency);
+		if (difference > errorTolerance*m_averagedFrequency)
+		{
+			m_averagedFrequency = m_smoothedFrequency;
+			m_sampleAmount = (int)(m_averagedFrequency * sampleSeconds) + 1;
+		}
+		else
+			m_averagedFrequency = ((m_sampleAmount - 1.0) * m_averagedFrequency + m_smoothedFrequency) / (float)m_sampleAmount;
+
 		// allow the smoothed FPS to free-run until it is no longer near the
 		// previous stable FPS value. round up because values are more often
 		// too low than too high.
-		const double difference = fabs(m_smoothedFrequency - m_stableFrequency);
-		if(difference > errorTolerance*m_stableFrequency)
-			m_stableFrequency = (int)(m_smoothedFrequency + 0.99);
+		m_stableFrequency = (int)(m_averagedFrequency + 0.99);
 	}
 
 	virtual double SmoothedFrequency() const
@@ -230,6 +242,8 @@ private:
 
 	int m_stableFrequency;
 	double m_smoothedFrequency;
+	double m_averagedFrequency;
+	int m_sampleAmount;
 };
 
 
