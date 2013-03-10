@@ -262,6 +262,7 @@ private:
 	std::map<ComponentTypeId, ComponentType> m_ComponentTypesById;
 	std::vector<boost::unordered_map<entity_id_t, IComponent*> > m_ComponentsByInterface; // indexed by InterfaceId
 	std::map<ComponentTypeId, std::map<entity_id_t, IComponent*> > m_ComponentsByTypeId;
+	std::map<ComponentTypeId, std::vector<IComponent*> > m_ComponentsByTypeIdVec;
 	std::map<MessageTypeId, std::vector<ComponentTypeId> > m_LocalMessageSubscriptions;
 	std::map<MessageTypeId, std::vector<ComponentTypeId> > m_GlobalMessageSubscriptions;
 	std::map<std::string, ComponentTypeId> m_ComponentTypeIdsByName;

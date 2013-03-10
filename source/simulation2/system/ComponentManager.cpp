@@ -283,11 +283,11 @@ void CComponentManager::Script_RegisterComponentType(void* cbdata, int iid, std:
 	{
 		// For every script component with this cid, we need to switch its
 		// prototype from the old constructor's prototype property to the new one's
-		const std::map<entity_id_t, IComponent*>& comps = componentManager->m_ComponentsByTypeId[cid];
-		std::map<entity_id_t, IComponent*>::const_iterator eit = comps.begin();
+		const std::vector<IComponent*>& comps = componentManager->m_ComponentsByTypeIdVec[cid];
+		std::vector<IComponent*>::const_iterator eit = comps.begin();
 		for (; eit != comps.end(); ++eit)
 		{
-			jsval instance = eit->second->GetJSInstance();
+			jsval instance = (*eit)->GetJSInstance();
 			if (!JSVAL_IS_NULL(instance))
 				componentManager->m_ScriptInterface.SetPrototype(instance, proto.get());
 		}
@@ -466,6 +466,7 @@ void CComponentManager::ResetState()
 		ifcit->clear();
 
 	m_ComponentsByTypeId.clear();
+	m_ComponentsByTypeIdVec.clear();
 
 	m_DestructionQueue.clear();
 
@@ -603,6 +604,7 @@ IComponent* CComponentManager::ConstructComponent(entity_id_t ent, ComponentType
 	}
 
 	std::map<entity_id_t, IComponent*>& emap2 = m_ComponentsByTypeId[cid];
+	std::vector<IComponent*>& evec2 = m_ComponentsByTypeIdVec[cid];
 
 	// If this is a scripted component, construct the appropriate JS object first
 	jsval obj = JSVAL_NULL;
@@ -625,6 +627,7 @@ IComponent* CComponentManager::ConstructComponent(entity_id_t ent, ComponentType
 
 	// Store a reference to the new component
 	emap1.insert(std::make_pair(ent, component));
+	evec2.push_back(component);
 	emap2.insert(std::make_pair(ent, component));
 	// TODO: We need to more careful about this - if an entity is constructed by a component
 	// while we're iterating over all components, this will invalidate the iterators and everything
@@ -719,6 +722,10 @@ void CComponentManager::FlushDestroyedComponents()
 				std::map<entity_id_t, IComponent*>::iterator eit = iit->second.find(ent);
 				if (eit != iit->second.end())
 				{
+					// Remove from m_ComponentsByTypeIdVec:
+					std::vector<IComponent*>::iterator eit2 = std::find(m_ComponentsByTypeIdVec[iit->first].begin(), m_ComponentsByTypeIdVec[iit->first].end(), eit->second);
+					m_ComponentsByTypeIdVec[iit->first].erase(eit2);
+
 					eit->second->Deinit();
 					m_ComponentTypesById[iit->first].dealloc(eit->second);
 					iit->second.erase(ent);
@@ -822,14 +829,14 @@ void CComponentManager::BroadcastMessage(const CMessage& msg) const
 		for (; ctit != it->second.end(); ++ctit)
 		{
 			// Find the component instances of this type (if any)
-			std::map<ComponentTypeId, std::map<entity_id_t, IComponent*> >::const_iterator emap = m_ComponentsByTypeId.find(*ctit);
-			if (emap == m_ComponentsByTypeId.end())
+			std::map<ComponentTypeId, std::vector<IComponent*> >::const_iterator emap = m_ComponentsByTypeIdVec.find(*ctit);
+			if (emap == m_ComponentsByTypeIdVec.end())
 				continue;
 
 			// Send the message to all of them
-			std::map<entity_id_t, IComponent*>::const_iterator eit = emap->second.begin();
+			std::vector<IComponent*>::const_iterator eit = emap->second.begin();
 			for (; eit != emap->second.end(); ++eit)
-				eit->second->HandleMessage(msg, false);
+				(*eit)->HandleMessage(msg, false);
 		}
 	}
 
@@ -859,14 +866,14 @@ void CComponentManager::SendGlobalMessage(entity_id_t ent, const CMessage& msg) 
 			}
 
 			// Find the component instances of this type (if any)
-			std::map<ComponentTypeId, std::map<entity_id_t, IComponent*> >::const_iterator emap = m_ComponentsByTypeId.find(*ctit);
-			if (emap == m_ComponentsByTypeId.end())
+			std::map<ComponentTypeId, std::vector<IComponent*> >::const_iterator emap = m_ComponentsByTypeIdVec.find(*ctit);
+			if (emap == m_ComponentsByTypeIdVec.end())
 				continue;
 
 			// Send the message to all of them
-			std::map<entity_id_t, IComponent*>::const_iterator eit = emap->second.begin();
+			std::vector<IComponent*>::const_iterator eit = emap->second.begin();
 			for (; eit != emap->second.end(); ++eit)
-				eit->second->HandleMessage(msg, true);
+				(*eit)->HandleMessage(msg, true);
 		}
 	}
 }
