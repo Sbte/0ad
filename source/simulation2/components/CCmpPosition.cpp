@@ -455,7 +455,7 @@ public:
 			m_LastRotY = m_RotY;
 
 			m_PositionChanged = m_X != m_PrevX || m_Z != m_PrevZ || m_RotY != m_PrevRotY || !m_Interpolated;
-			m_Interpolated = false;
+			m_Interpolated = !m_PositionChanged;
 
 			break;
 		}
@@ -481,6 +481,7 @@ private:
 			GetSimContext().GetComponentManager().PostMessage(GetEntityId(), msg);
 		}
 		m_PositionChanged = true;
+		m_Interpolated = false;
 	}
 
 	bool m_PositionChanged;
